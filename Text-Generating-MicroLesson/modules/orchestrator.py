@@ -6,10 +6,10 @@ from typing import Optional
 from datetime import datetime
 from collections import defaultdict
 from modules.config import settings
-import google_services as gs
-import rag_engine
-import pdf_generator
-from prompt_config import get_resolved_prompt
+from modules import google_services as gs
+from modules import rag_engine
+from modules import pdf_generator
+from modules.prompt_config import get_resolved_prompt
 
 
 def extract_drive_id(url: str) -> str:

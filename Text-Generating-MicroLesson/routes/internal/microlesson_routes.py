@@ -30,7 +30,8 @@ class MicroLessonRequest(BaseModel):
     )
 
 
-@router.post("/microlessons/generate")
+# i changed this to /generate from /microlessons/generate for simplicity, change if wrong
+@router.post("/generate")
 async def generate_microlesson(request: MicroLessonRequest):
     try:
         result = process_microlessons_logic(
@@ -43,4 +44,3 @@ async def generate_microlesson(request: MicroLessonRequest):
         return {"status": "success", "details": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
