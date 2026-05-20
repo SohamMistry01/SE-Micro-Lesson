@@ -71,7 +71,7 @@ function tryAddImage(slide, imgPath, opts) {
   if (!imgPath) return false;
   const resolved = path.isAbsolute(imgPath) ? imgPath : path.resolve(imgPath);
   if (!fs.existsSync(resolved)) {
-    console.warn(`⚠️  Image not found, skipping: ${resolved}`);
+    console.warn(`Image not found, skipping: ${resolved}`);
     return false;
   }
   slide.addImage({ path: resolved, ...opts });
@@ -340,7 +340,7 @@ function buildClosingSlide(pres, title) {
 
   pres.writeFile({ fileName: outputPath })
     .then(() => {
-      console.log(`✅ PPT saved to: ${outputPath}`);
+      console.log(`PPT saved to: ${outputPath}`);
     })
     .catch((err) => {
       console.error("Failed to write PPTX:", err.message);

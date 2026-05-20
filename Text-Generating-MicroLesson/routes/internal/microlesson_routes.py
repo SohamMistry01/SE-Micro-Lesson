@@ -24,8 +24,7 @@ class MicroLessonRequest(BaseModel):
         description="Optional custom filename base. Can include placeholders like {uid} and {timestamp}. Default is '{uid}_{timestamp}'.",
     )
     custom_prompt: Optional[str] = Field(
-        default=None,
-        example=DEFAULT_CUSTOM_PROMPT,
+        default=DEFAULT_CUSTOM_PROMPT,
         description="Fully custom prompt template to override the default category prompt. MUST contain '{content}'.",
     )
 

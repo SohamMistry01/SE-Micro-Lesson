@@ -109,14 +109,6 @@ def generate_microlesson_node(state: OverallState):
     return {"final_microlesson": chain.invoke({"content": all_summaries})}
 
 
-"""
-def map_files_to_workers(state: OverallState):
-    return [Send("process_file", {
-        "content": c, 
-        "priority_llm": state.get("priority_llm")
-    }) for c in state["file_contents"]]
-"""
-
 workflow = StateGraph(OverallState)
 workflow.add_node("process_file", process_file_node)
 workflow.add_node("generate_microlesson", generate_microlesson_node)

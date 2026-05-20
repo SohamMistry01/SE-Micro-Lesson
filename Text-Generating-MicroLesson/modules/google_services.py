@@ -83,8 +83,6 @@ def upload_to_drive(filename: str, content: bytes, mime_type: str) -> str:
 
     return file.get("webViewLink")
 
-
-# --- NEW FUNCTION TO FIX YOUR ERROR ---
 def download_drive_text_content(file_id: str) -> str:
     """Downloads a text file content directly from Drive API using File ID."""
     creds = get_creds()
@@ -136,7 +134,7 @@ def get_and_parse_drive_file(file_id: str) -> str:
                 _, done = downloader.next_chunk()
             return fh.getvalue().decode("utf-8").strip()
 
-        # 2. ✅ FIX: Handle PDFs using Google's Native Conversion Engine
+        # 2. Handle PDFs using Google's Native Conversion Engine
         elif "application/pdf" in mime_type:
             print("   Using Google Native Engine to extract PDF text...")
 
@@ -186,5 +184,5 @@ def get_and_parse_drive_file(file_id: str) -> str:
             return fh.getvalue().decode("utf-8").strip()
 
     except Exception as e:
-        print(f"❌ Error parsing Google Drive file {file_id}: {e}")
+        print(f"Error parsing Google Drive file {file_id}: {e}")
         return ""
