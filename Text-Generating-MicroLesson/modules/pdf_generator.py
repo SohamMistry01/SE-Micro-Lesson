@@ -5,9 +5,10 @@ from xhtml2pdf import pisa
 from pypdf import PdfWriter, PdfReader
 
 # Margins
-TOP_MARGIN = "140pt"    
-BOTTOM_MARGIN = "100pt" 
+TOP_MARGIN = "140pt"
+BOTTOM_MARGIN = "100pt"
 SIDE_MARGIN = "60pt"
+
 
 def sanitize_text(text: str) -> str:
     """
@@ -15,27 +16,23 @@ def sanitize_text(text: str) -> str:
     1. Replaces known 'fancy' characters with standard ASCII equivalents.
     2. Strips any remaining non-standard characters that cause 'blocks'.
     """
-    # 1. Specific replacements for common LLM artifacts
     replacements = {
-        "–": "-",  # En-dash 
+        "–": "-",  # En-dash
         "‑": "-",
         "—": "-",  # Em-dash
         "’": "'",  # Smart quote
         "‘": "'",  # Smart quote
         "“": '"',  # Smart double quote
         "”": '"',  # Smart double quote
-        "…": "...", # Ellipsis
-        "•": "*",  # Bullet point (sometimes causes issues)
+        "…": "...",  # Ellipsis
+        "•": "*",  # Bullet point
     }
     for old, new in replacements.items():
         text = text.replace(old, new)
 
-    # 2. Aggressive ASCII normalization
-    # This encodes to ASCII (ignoring errors) and decodes back.
-    # It removes any invisible/weird characters that the font can't render.
     text = text.encode("ascii", "ignore").decode("ascii")
-    
     return text
+
 
 def create_pdf_bytes(markdown_content: str, template_path: str) -> bytes:
     """
@@ -48,9 +45,8 @@ def create_pdf_bytes(markdown_content: str, template_path: str) -> bytes:
     cleaned_content = sanitize_text(markdown_content)
 
     # 2. HTML Conversion
-    # Removed 'codehilite' to prevent xhtml2pdf rendering bugs with complex spans
-    html_body = markdown.markdown(cleaned_content, extensions=['extra', 'sane_lists'])
-    
+    html_body = markdown.markdown(cleaned_content, extensions=["extra", "sane_lists"])
+
     html_template = f"""
     <!DOCTYPE html>
     <html>
@@ -78,6 +74,17 @@ def create_pdf_bytes(markdown_content: str, template_path: str) -> bytes:
             ul, ol {{ line-height: 1.5; margin-bottom: 10px; }}
             li {{ margin-bottom: 5px; }}
             
+            /* --- FIX 4: DYNAMIC IMAGE HANDLING --- */
+            img {{
+                max-width: 100%;
+                height: auto;
+                display: block;
+                margin-left: auto;
+                margin-right: auto;
+                margin-top: 15px;
+                margin-bottom: 15px;
+            }}
+            
             /* --- FIX 1: TABLE STYLES --- */
             table {{
                 width: 100%;
@@ -96,10 +103,10 @@ def create_pdf_bytes(markdown_content: str, template_path: str) -> bytes:
                 font-weight: bold;
             }}
 
-            /* --- FIX 2: INLINE CODE (Replaces Pink Color) --- */
+            /* --- FIX 2: INLINE CODE --- */
             code {{
                 font-family: 'Courier New', Courier, monospace;
-                color: #2c3e50; /* Dark slate instead of pink */
+                color: #2c3e50; 
                 background-color: #f4f6f7;
                 border: 1px solid #dcdcdc;
                 padding: 2px 4px;
@@ -107,25 +114,21 @@ def create_pdf_bytes(markdown_content: str, template_path: str) -> bytes:
                 font-size: 10.5pt;
             }}
             
-            /* --- FIX 3: CODE BLOCKS (Indentation & Spacing) --- */
+            /* --- FIX 3: CODE BLOCKS --- */
             pre {{
                 background-color: #f8f9fa;
                 padding: 12px;
                 margin: 15px 0;
                 border: 1px solid #cccccc;
-                border-left: 4px solid #4a90e2; /* Nice blue accent line */
+                border-left: 4px solid #4a90e2; 
                 font-family: 'Courier New', Courier, monospace;
                 font-size: 10pt;
-                
-                /* CRITICAL: Forces code alignment to left, overriding the global p text-align: justify */
                 text-align: left; 
-                
                 white-space: pre-wrap; 
                 word-wrap: break-word;
                 overflow-wrap: break-word;
             }}
             
-            /* Reset inline code styles when inside a pre block */
             pre code {{
                 background-color: transparent;
                 border: none;
@@ -139,16 +142,13 @@ def create_pdf_bytes(markdown_content: str, template_path: str) -> bytes:
     </body>
     </html>
     """
-    
+
     content_pdf_buffer = io.BytesIO()
-    
-    # encoding='utf-8' ensures special characters are handled correctly
+
     pisa_status = pisa.CreatePDF(
-        src=html_template, 
-        dest=content_pdf_buffer,
-        encoding='utf-8'
+        src=html_template, dest=content_pdf_buffer, encoding="utf-8"
     )
-    
+
     if pisa_status.err:
         raise Exception("Error generating HTML PDF")
 

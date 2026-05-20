@@ -6,7 +6,6 @@ payload = {
     "category": "practical",
     "template_path": "default",
     "priority_llm": None,
-    "filename": "microlesson_export",
 }
 
 try:
