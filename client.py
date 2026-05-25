@@ -6,6 +6,7 @@ payload = {
     "category": "practical",
     "template_path": "default",
     "priority_llm": None,
+    "no_of_images": 5,
 }
 
 try:

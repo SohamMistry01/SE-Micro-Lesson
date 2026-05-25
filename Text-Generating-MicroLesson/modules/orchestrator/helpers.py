@@ -24,7 +24,7 @@ def save_generated_image(prompt: str, output_path: str) -> bool:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
         print(f"Generating SDXL Turbo image for prompt: '{prompt[:50]}...'")
-        img_bytes = image_generator.generate_image(prompt=prompt, steps=2, seed=42)
+        img_bytes = image_generator.generate_image(prompt=prompt, steps=1, seed=42)
 
         with open(output_path, "wb") as f:
             f.write(img_bytes)
@@ -131,11 +131,19 @@ def _fetch_pending_tasks() -> Optional[Dict[str, List[Dict]]]:
 
 
 
-def _plan_and_generate_images(uid: str, contents: List[str], priority_llm: Optional[str], timestamp: str) -> str:
+def _plan_and_generate_images(uid: str, contents: List[str], priority_llm: Optional[str], timestamp: str, no_of_images: int = 2) -> str:
     """Uses the LLM to plan images, generates them, and returns injection instructions."""
-    print(f"Planning visual illustrations for UID: {uid}...")
+    print(f"Planning {no_of_images} visual illustrations for UID: {uid}...")
+
+    # Dynamically build the expected output format block
+    format_lines = []
+    for i in range(1, no_of_images + 1):
+        format_lines.append(f"IMAGE {i} DESCRIPTION: [one sentence on where/why this image fits]")
+        format_lines.append(f"IMAGE {i} PROMPT: [max 10 words, physical scene only, no proper nouns]")
+    expected_format = "\n".join(format_lines)
+
     image_planning_query = (
-        f"Based on the following document context, identify 2 sections that would benefit "
+        f"Based on the following document context, identify {no_of_images} sections that would benefit "
         f"from a simple visual diagram or illustration.\n\n"
         f"STRICT RULES for the image prompts:\n"
         f"- Maximum 10 words per prompt.\n"
@@ -145,10 +153,7 @@ def _plan_and_generate_images(uid: str, contents: List[str], priority_llm: Optio
         f"'old ship ocean sailing', 'ancient crown throne room').\n"
         f"- Use nouns and adjectives only. No verbs, no sentences.\n\n"
         f"Return your answer EXACTLY using this format and nothing else:\n"
-        f"IMAGE 1 DESCRIPTION: [one sentence on where/why this image fits]\n"
-        f"IMAGE 1 PROMPT: [max 10 words, physical scene only, no proper nouns]\n"
-        f"IMAGE 2 DESCRIPTION: [one sentence on where/why this image fits]\n"
-        f"IMAGE 2 PROMPT: [max 10 words, physical scene only, no proper nouns]\n\n"
+        f"{expected_format}\n\n"
         f"Context:\n{contents}"
     )
 
@@ -159,27 +164,24 @@ def _plan_and_generate_images(uid: str, contents: List[str], priority_llm: Optio
         prompt_template="{content}",
     )
 
-    # Parse the structured text lines
-    img1_desc = re.search(r"IMAGE 1 DESCRIPTION:\s*(.*)", raw_image_plan)
-    img1_prompt = re.search(r"IMAGE 1 PROMPT:\s*(.*)", raw_image_plan)
-    img2_desc = re.search(r"IMAGE 2 DESCRIPTION:\s*(.*)", raw_image_plan)
-    img2_prompt = re.search(r"IMAGE 2 PROMPT:\s*(.*)", raw_image_plan)
-
     image_injection_instructions = ""
 
-    # Generate Image 1
-    if img1_prompt and img1_desc:
-        safe_prompt_1 = " ".join(img1_prompt.group(1).strip().split()[:10])
-        path_1 = f"./temp/{uid}_{timestamp}_img1.png"
-        if save_generated_image(safe_prompt_1, path_1):
-            image_injection_instructions += f"\n- Image 1 File Path: {path_1}\n  Context/Description: {img1_desc.group(1).strip()}\n"
+    for i in range(1, no_of_images + 1):
+        desc_match = re.search(rf"IMAGE {i} DESCRIPTION:\s*(.*)", raw_image_plan)
+        prompt_match = re.search(rf"IMAGE {i} PROMPT:\s*(.*)", raw_image_plan)
 
-    # Generate Image 2
-    if img2_prompt and img2_desc:
-        safe_prompt_2 = " ".join(img2_prompt.group(1).strip().split()[:10])
-        path_2 = f"./temp/{uid}_{timestamp}_img2.png"
-        if save_generated_image(safe_prompt_2, path_2):
-            image_injection_instructions += f"\n- Image 2 File Path: {path_2}\n  Context/Description: {img2_desc.group(1).strip()}\n"
+        if not (desc_match and prompt_match):
+            print(f"Warning: Could not parse plan for image {i}, skipping.")
+            continue
+
+        safe_prompt = " ".join(prompt_match.group(1).strip().split()[:10])
+        path = f"./temp/{uid}_{timestamp}_img{i}.png"
+
+        if save_generated_image(safe_prompt, path):
+            image_injection_instructions += (
+                f"\n- Image {i} File Path: {path}\n"
+                f"  Context/Description: {desc_match.group(1).strip()}\n"
+            )
 
     return image_injection_instructions
 

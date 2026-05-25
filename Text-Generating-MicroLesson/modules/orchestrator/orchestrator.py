@@ -33,6 +33,7 @@ def process_microlessons_logic(
     template_path: Optional[str] = None,
     priority_llm: Optional[str] = None,
     custom_prompt: Optional[str] = None,
+    no_of_images: Optional[int] = None,
     filename_pattern: Optional[str] = None,
 ):
     resolved_prompt = get_resolved_prompt(category, custom_prompt)
@@ -62,9 +63,10 @@ def process_microlessons_logic(
             continue
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
+        if(no_of_images == None):
+            no_of_images = 0
         # 3. Plan & Generate Images
-        image_instructions = _plan_and_generate_images(uid, contents, priority_llm, timestamp)
+        image_instructions = _plan_and_generate_images(uid, contents, priority_llm, timestamp, no_of_images)
         extended_prompt = _build_extended_prompt(resolved_prompt, image_instructions)
 
         # 4. Generate Final Lesson Content

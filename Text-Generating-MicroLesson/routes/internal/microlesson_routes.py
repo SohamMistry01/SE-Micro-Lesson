@@ -23,6 +23,10 @@ class MicroLessonRequest(BaseModel):
         default=None,
         description="Optional custom filename base. Can include placeholders like {uid} and {timestamp}. Default is '{uid}_{timestamp}'.",
     )
+    no_of_images: Optional[int] = Field(
+        default=2,
+        description="No of images in the generated items"
+    )
     custom_prompt: Optional[str] = Field(
         default=DEFAULT_CUSTOM_PROMPT,
         description="Fully custom prompt template to override the default category prompt. MUST contain '{content}'.",
@@ -38,6 +42,7 @@ async def generate_microlesson(request: MicroLessonRequest):
             template_path=request.template_path,
             priority_llm=request.priority_llm,
             custom_prompt=request.custom_prompt,
+            no_of_images = request.no_of_images,
             filename_pattern=request.filename,
         )
         return {"status": "success", "details": result}
