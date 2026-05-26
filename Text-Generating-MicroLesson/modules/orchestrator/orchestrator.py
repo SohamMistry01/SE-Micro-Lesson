@@ -2,7 +2,7 @@ import os
 import io
 from datetime import datetime
 from ..config import settings
-from ..prompt_config import get_resolved_prompt
+from ..prompt_config import PROMPT_TEMPLATES, get_resolved_prompt
 from .. import rag_engine
 from .. import google_services as gs
 from typing import Optional
@@ -17,28 +17,36 @@ from .helpers import (
 
 
 
-TEMPLATE_MAP = {
+PDF_TEMPLATE_MAP = {
     "default": settings.DEFAULT_TEMPLATE_PATH,
     # Easily add more templates here in the future:
     # "minimal": "./modules/microlesson_generator/pdf_templates/minimal.pdf",
     # "dark_theme": "./modules/microlesson_generator/pdf_templates/dark.pdf"
 }
-
+PPT_TEMPLATE_MAP = {
+    "default": "themes/default.js",
+    "aurora": "themes/aurora.js",
+    "frost": "themes/frost.js",
+    "terra": "themes/terra.js",
+}
 # ==========================================
 # Main Processor
 # ==========================================
 
 def process_microlessons_logic(
     category: str,
-    template_path: Optional[str] = None,
+    pdf_template: Optional[str] = None,
+    ppt_template: Optional[str] = None,
     priority_llm: Optional[str] = None,
     custom_prompt: Optional[str] = None,
     no_of_images: Optional[int] = None,
     filename_pattern: Optional[str] = None,
 ):
     resolved_prompt = get_resolved_prompt(category, custom_prompt)
-    template_path = template_path or "default"
-    final_template_path = TEMPLATE_MAP.get(template_path.lower())
+    pdf_template = pdf_template or "default"
+    ppt_template = ppt_template or "default"
+    pdf_template_path = PDF_TEMPLATE_MAP.get(pdf_template.lower())
+    ppt_template_path = PPT_TEMPLATE_MAP.get(ppt_template.lower())
 
     # 1. Fetch & Filter Data
     tasks = _fetch_pending_tasks()
@@ -83,7 +91,7 @@ def process_microlessons_logic(
         )
         
         txt_link, pdf_link, ppt_link = _generate_and_upload_assets(
-            uid, lesson_md, txt_filename, pdf_filename, ppt_filename, final_template_path
+            uid, lesson_md, txt_filename, pdf_filename, ppt_filename, pdf_template_path, ppt_template_path
         )
 
         # 6. Write results back to Google Sheet

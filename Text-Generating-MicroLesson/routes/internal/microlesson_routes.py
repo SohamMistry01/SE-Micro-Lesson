@@ -12,9 +12,13 @@ class MicroLessonRequest(BaseModel):
         default="general",
         description="Category of the micro-lesson (e.g., 'theoretical', 'practical', 'general')",
     )
-    template_path: str = Field(
+    pdf_template: str = Field(
         default="default",
         description="Key for the template to use (e.g., 'default'). Maps to predefined paths in the backend.",
+    )
+    ppt_template: str = Field(
+        default="default",
+        description="Available - {Aurora, Frost, Terra, Default}",
     )
     priority_llm: Optional[str] = Field(
         default=None, description="Optional LLM model name to prioritize for this task."
@@ -39,7 +43,8 @@ async def generate_microlesson(request: MicroLessonRequest):
     try:
         result = process_microlessons_logic(
             category=request.category,
-            template_path=request.template_path,
+            pdf_template=request.pdf_template,
+            ppt_template=request.ppt_template,
             priority_llm=request.priority_llm,
             custom_prompt=request.custom_prompt,
             no_of_images = request.no_of_images,

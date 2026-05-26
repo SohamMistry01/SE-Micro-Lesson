@@ -86,7 +86,7 @@ def parse_markdown_to_slides(lesson_md: str) -> dict:
     return {"title": title, "slides": slides}
 
 
-def create_ppt_bytes(lesson_md: str) -> bytes:
+def create_ppt_bytes(lesson_md: str, path: str) -> bytes:
     """
     Converts a markdown lesson string into PPTX bytes.
     Internally calls create_ppt.js via Node.js.
@@ -101,7 +101,7 @@ def create_ppt_bytes(lesson_md: str) -> bytes:
         json_path = f.name
 
     output_path = json_path.replace(".json", ".pptx")
-    script_path = os.path.join(os.path.dirname(__file__), "create_ppt.js")
+    script_path = os.path.join(os.path.dirname(__file__), path)
 
     try:
         result = subprocess.run(

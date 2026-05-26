@@ -2,6 +2,7 @@ import os
 import re
 import io
 import requests
+import json
 import PyPDF2
 from collections import defaultdict
 from typing import Optional, Dict, List, Tuple
@@ -10,6 +11,10 @@ from .. import google_services as gs
 from .. import rag_engine
 from ..ppt_generator import ppt_generator
 from .. import pdf_generator
+from langchain_groq import ChatGroq
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from modules.config import settings
 
 # ==========================================
 # Core Utility Functions
@@ -132,15 +137,14 @@ def _fetch_pending_tasks() -> Optional[Dict[str, List[Dict]]]:
 
 
 def _plan_and_generate_images(uid: str, contents: List[str], priority_llm: Optional[str], timestamp: str, no_of_images: int = 2) -> str:
-    """Uses the LLM to plan images, generates them, and returns injection instructions."""
+    if no_of_images <= 0:
+        return ""
+        
     print(f"Planning {no_of_images} visual illustrations for UID: {uid}...")
 
-    # Dynamically build the expected output format block
-    format_lines = []
-    for i in range(1, no_of_images + 1):
-        format_lines.append(f"IMAGE {i} DESCRIPTION: [one sentence on where/why this image fits]")
-        format_lines.append(f"IMAGE {i} PROMPT: [max 10 words, physical scene only, no proper nouns]")
-    expected_format = "\n".join(format_lines)
+    clean_context = "\n\n".join(contents)
+    # Optional: Truncate context if it's massively huge to save tokens for the prompt
+    clean_context = clean_context[:20000] 
 
     image_planning_query = (
         f"Based on the following document context, identify {no_of_images} sections that would benefit "
@@ -152,35 +156,73 @@ def _plan_and_generate_images(uid: str, contents: List[str], priority_llm: Optio
         f"(e.g. 'army soldiers marching battlefield', 'cannon fire smoke field', "
         f"'old ship ocean sailing', 'ancient crown throne room').\n"
         f"- Use nouns and adjectives only. No verbs, no sentences.\n\n"
-        f"Return your answer EXACTLY using this format and nothing else:\n"
-        f"{expected_format}\n\n"
-        f"Context:\n{contents}"
+        f"Return your answer EXACTLY as a valid JSON array containing exactly {no_of_images} objects. "
+        f"Do not include any conversational text or markdown. Each object must have exactly these two keys:\n"
+        f"1. \"description\": One sentence on where/why this image fits.\n"
+        f"2. \"prompt\": The max 10-word physical scene prompt.\n\n"
+        f"Example format:\n"
+        f"[\n"
+        f"  {{\"description\": \"Fits in the intro to show setting.\", \"prompt\": \"ancient castle ruins foggy mountains\"}}\n"
+        f"]\n\n"
+        f"Context:\n{clean_context}"
     )
 
-    raw_image_plan = rag_engine.run_rag_pipeline(
-        contents=[image_planning_query],
-        category="general",
-        priority_llm=priority_llm,
-        prompt_template="{content}",
-    )
+    # 1. FIX: Call the LLM directly, skipping the summarization pipeline
+    try:
+        # Use a low temperature (0.1) to force strict JSON compliance
+        model_to_use = priority_llm if priority_llm else "llama-3.3-70b-versatile"
+        llm = ChatGroq(model=model_to_use, temperature=0.1, api_key=settings.GROQ_API_KEY)
+        direct_prompt = ChatPromptTemplate.from_template("{query}")
+        chain = direct_prompt.pipe(llm).pipe(StrOutputParser())
+        
+        raw_image_plan = chain.invoke({"query": image_planning_query})
+    except Exception as e:
+        print(f"Error during direct LLM call for image planning: {e}")
+        return ""
+
+    # 2. Clean the LLM output
+    cleaned_plan = raw_image_plan.strip()
+    if cleaned_plan.startswith("```json"):
+        cleaned_plan = cleaned_plan[7:]
+    elif cleaned_plan.startswith("```"):
+        cleaned_plan = cleaned_plan[3:]
+        
+    if cleaned_plan.endswith("```"):
+        cleaned_plan = cleaned_plan[:-3]
+        
+    cleaned_plan = cleaned_plan.strip()
 
     image_injection_instructions = ""
 
-    for i in range(1, no_of_images + 1):
-        desc_match = re.search(rf"IMAGE {i} DESCRIPTION:\s*(.*)", raw_image_plan)
-        prompt_match = re.search(rf"IMAGE {i} PROMPT:\s*(.*)", raw_image_plan)
+    # 3. Parse JSON
+    try:
+        image_data = json.loads(cleaned_plan)
+    except json.JSONDecodeError as e:
+        print(f"Error parsing JSON from LLM: {e}\nRaw Output: {raw_image_plan}")
+        return image_injection_instructions
 
-        if not (desc_match and prompt_match):
-            print(f"Warning: Could not parse plan for image {i}, skipping.")
+    if not isinstance(image_data, list):
+        print("Warning: LLM did not return a JSON array.")
+        return image_injection_instructions
+        
+    image_data = image_data[:no_of_images]
+
+    # 4. Generate Images
+    for i, img_obj in enumerate(image_data, 1):
+        desc = img_obj.get("description", "")
+        prompt = img_obj.get("prompt", "")
+
+        if not desc or not prompt:
+            print(f"Warning: Missing data for image {i}, skipping.")
             continue
 
-        safe_prompt = " ".join(prompt_match.group(1).strip().split()[:10])
+        safe_prompt = " ".join(prompt.strip().split()[:10])
         path = f"./temp/{uid}_{timestamp}_img{i}.png"
 
         if save_generated_image(safe_prompt, path):
             image_injection_instructions += (
                 f"\n- Image {i} File Path: {path}\n"
-                f"  Context/Description: {desc_match.group(1).strip()}\n"
+                f"  Context/Description: {desc.strip()}\n"
             )
 
     return image_injection_instructions
@@ -223,14 +265,14 @@ def _generate_filenames(uid: str, timestamp: str, filename_pattern: Optional[str
 
 
 
-def _generate_and_upload_assets(uid: str, lesson_md: str, txt_name: str, pdf_name: str, ppt_name: str, template_path: str) -> Tuple[str, str, str]:
+def _generate_and_upload_assets(uid: str, lesson_md: str, txt_name: str, pdf_name: str, ppt_name: str, pdf_template_path: str, ppt_template_path: str) -> Tuple[str, str, str]:
     """Handles generating and uploading the text, PDF, and PPT files to Google Drive."""
     # Upload TXT
     txt_link = gs.upload_to_drive(txt_name, lesson_md.encode("utf-8"), "text/plain")
 
     # Generate & Upload PDF
     try:
-        pdf_bytes = pdf_generator.create_pdf_bytes(lesson_md, template_path)
+        pdf_bytes = pdf_generator.create_pdf_bytes(lesson_md, pdf_template_path)
         pdf_link = gs.upload_to_drive(pdf_name, pdf_bytes, "application/pdf")
     except Exception as e:
         print(f"PDF Gen Error for {uid}: {e}")
@@ -239,7 +281,7 @@ def _generate_and_upload_assets(uid: str, lesson_md: str, txt_name: str, pdf_nam
     # Generate & Upload PPT
     try:
         print(f"Generating PPT for UID: {uid}...")
-        ppt_bytes = ppt_generator.create_ppt_bytes(lesson_md)
+        ppt_bytes = ppt_generator.create_ppt_bytes(lesson_md, ppt_template_path)
         ppt_link = gs.upload_to_drive(
             ppt_name,
             ppt_bytes,
